@@ -1,0 +1,6 @@
+venv_service_accessibility/
+__pycache__/
+*.pyc
+.env
+.pytest_cache
+tests
