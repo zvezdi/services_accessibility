@@ -7,4 +7,5 @@
 
 ## Run the tests
 
-`pytest tests/`
+1. First install the project as editable package with `pip install -e .`
+2. Run `pytest` from the root of the project
