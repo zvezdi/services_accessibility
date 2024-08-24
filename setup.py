@@ -13,5 +13,7 @@ setup(
         "fastapi",
         "uvicorn",
         "python-dotenv",
+        "tqdm",
+        "rtree"
     ],
 )

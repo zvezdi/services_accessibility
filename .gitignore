@@ -4,3 +4,4 @@ __pycache__/
 .env
 .pytest_cache
 service_accessibility.egg-info
+ui/node_modules
