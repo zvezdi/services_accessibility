@@ -5,3 +5,4 @@ __pycache__/
 .pytest_cache
 service_accessibility.egg-info
 ui/node_modules
+data
