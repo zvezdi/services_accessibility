@@ -4,7 +4,7 @@ from rtree import index
 import pickle
 import os
 from geoalchemy2.shape import to_shape
-from shapely.geometry import LineString, MultiLineString, Point, Polygon, MultiPoint
+from shapely.geometry import LineString, MultiLineString, Point, Polygon, MultiPoint, MultiPolygon
 from shapely import wkt
 from ..database.connection import get_db_session
 from ..models.pedestrian_path import PedestrianPath
@@ -12,7 +12,7 @@ from .crs_transform import get_transformer, crs_transform
 from tqdm import tqdm
 
 class PedestrianGraph:
-    POINT_BUFFER = 2.0  # 2 meter buffer as rtree requires a rectangle to work with
+    POINT_BUFFER = 1.0  # 1 meter buffer as rtree requires a rectangle to work with
 
     def __init__(self):
         self.G = nx.Graph()
@@ -98,14 +98,20 @@ class PedestrianGraph:
             return edge_id
 
     def add_linestring_to_graph(self, linestring: LineString, path: PedestrianPath):
+        # TODO: each linestring is simplified to a straight line. Should I add each part of the linestring separately, how to assign the weights?
         start_point = Point(linestring.coords[0])
         end_point = Point(linestring.coords[-1])
         
+        if start_point == end_point:
+            # TODO: Figure out what to do with linestrings that have the same start and end point
+            # print(f"Warning: Linestring with same start and end point detected. Path ID: {path.id} linestring: {linestring}")
+            # for now get the previous to last coord
+            end_point = Point(linestring.coords[-2])
+
         start_node_id = self.add_or_get_node(start_point)
         end_node_id = self.add_or_get_node(end_point)
-        
         if start_node_id == end_node_id:
-            # TODO: Figure out why we get edges linestrings that have the same start and end point
+            print("Start and end are still the same")
             return
 
         self.G.add_edge(
@@ -125,10 +131,11 @@ class PedestrianGraph:
             existing_node_id = nearest[0]
             existing_point = wkt.loads(self.G.nodes[existing_node_id]['wkt'])
             if existing_point.equals(point):
-                # If the node already exists and doesn't have an amenity type, add it
-                # TODO: Add support for 2 different amenities at the same point 
-                if amenity_type and 'amenity_type' not in self.G.nodes[existing_node_id]:
-                    self.G.nodes[existing_node_id]['amenity_type'] = amenity_type
+                if amenity_type:
+                    if 'amenity_types' not in self.G.nodes[existing_node_id]:
+                        self.G.nodes[existing_node_id]['amenity_types'] = set()
+                    self.G.nodes[existing_node_id]['amenity_types'].add(amenity_type)
+                
                 return existing_node_id
 
         # If no existing node, create a new one
@@ -136,10 +143,18 @@ class PedestrianGraph:
         self.node_id_counter += 1
         node_data = {'wkt': point.wkt}
         if amenity_type:
-            node_data['amenity_type'] = amenity_type
+            node_data['amenity_types'] = { amenity_type }
         self.G.add_node(new_node_id, **node_data)
         self.rtree_nodes_index.insert(new_node_id, point.buffer(self.POINT_BUFFER).bounds)
         return new_node_id
+
+    def point_to_node_id(self, point: Point) -> int:
+        nearest = list(self.rtree_nodes_index.nearest(point.bounds, 1))
+        if nearest:
+            existing_node_id = nearest[0]
+            existing_point = wkt.loads(self.G.nodes[existing_node_id]['wkt'])
+            
+            return existing_node_id if existing_point == point else None
 
     def node_to_point(self, node_id: int) -> Point:
         if self.G.has_node(node_id):
@@ -162,7 +177,8 @@ class PedestrianGraph:
 
         for edge_id in nearest_edges_candidates:
             if not edge_id in self.edge_id_to_nodes:
-                print(f'Skipping edge_id {edge_id} from nearest_edges_candidates')
+                # TODO: Why edge is missing?
+                # print(f'Skipping edge_id {edge_id} from nearest_edges_candidates')
                 continue
             start_node_id, end_node_id = self.edge_id_to_nodes[edge_id]
             start_point = self.node_to_point(start_node_id)
@@ -180,10 +196,13 @@ class PedestrianGraph:
         return nearest_edge
 
     def extend_graph_with_point(self, point: Point, amenity_type=None) -> int:
-        start_node_id, end_node_id = self.find_nearest_edge(point)
-        if start_node_id == end_node_id:
-            # TODO: Double check
+        if self.point_to_node_id(point):
+            # TODO: refactor!
+            # Just add the amenity type if the point already has a node for in G
+            self.add_or_get_node(point, amenity_type)
             return
+
+        start_node_id, end_node_id = self.find_nearest_edge(point)
 
         edge_data = self.G[start_node_id][end_node_id]
 
@@ -231,7 +250,8 @@ class PedestrianGraph:
         self.rtree_edges_index.delete(old_edge_id, self.edge_id_to_nodes[old_edge_id])
         del self.edge_id_to_nodes[old_edge_id]
         del self.nodes_to_edge_id[(start_node_id, end_node_id)]
-        del self.nodes_to_edge_id[(end_node_id, start_node_id)]
+        if (end_node_id, start_node_id) in self.nodes_to_edge_id:
+            del self.nodes_to_edge_id[(end_node_id, start_node_id)] 
 
         new_edge_id_1 = self.get_edge_id(start_node_id, projected_node_id)
         new_edge_id_2 = self.get_edge_id(projected_node_id, end_node_id)
@@ -258,6 +278,13 @@ class PedestrianGraph:
                         # There are 3D Multipoints in the database
                         simple_point = Point(point.x, point.y)
                         self.extend_graph_with_point(simple_point, amenity_type)
+                elif isinstance(shape, Polygon):
+                    centroid = shape.centroid
+                    self.extend_graph_with_point(centroid, amenity_type)
+                elif isinstance(shape, MultiPolygon):
+                    for polygon in shape.geoms:
+                        centroid = polygon.centroid
+                        self.extend_graph_with_point(centroid, amenity_type)
                 else:
                     pbar.write(f"Skipping unsupported geometry type: {type(shape)}")
                 pbar.update(1)
