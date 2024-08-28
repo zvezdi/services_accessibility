@@ -7,4 +7,4 @@ sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 's
 from service_accessibility.services.build_extended_network import build_and_save
 
 if __name__ == "__main__":
-    build_and_save("extended_network")
+    build_and_save()

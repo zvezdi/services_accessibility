@@ -4,63 +4,83 @@ from rtree import index
 import pickle
 import os
 from geoalchemy2.shape import to_shape
-from shapely.geometry import LineString, MultiLineString, Point, Polygon, MultiPoint, MultiPolygon
+from shapely.geometry import LineString, MultiLineString, Point, Polygon, MultiPoint, MultiPolygon, box
 from shapely import wkt
 from ..database.connection import get_db_session
 from ..models.pedestrian_path import PedestrianPath
 from .crs_transform import get_transformer, crs_transform
 from tqdm import tqdm
+from collections import defaultdict
+from shapely.ops import unary_union
+from scipy.spatial import Delaunay
+import numpy as np
 
 class PedestrianGraph:
     POINT_BUFFER = 1.0  # 1 meter buffer as rtree requires a rectangle to work with
 
-    def __init__(self):
+    def __init__(self, data_dir: str = 'data', filename: str = "extended_network"):
+        self.graph_filename = os.path.join(data_dir, f'{filename}.gpickle')
+        nodes_idx_filename = os.path.join(data_dir, f'{filename}_nodes')
+        edges_idx_filename = os.path.join(data_dir, f'{filename}_edges')
+
         self.G = nx.Graph()
-        self.rtree_nodes_index = index.Index()
-        self.rtree_edges_index = index.Index()
+        self.rtree_nodes_index = index.Index(nodes_idx_filename)
+        self.rtree_edges_index = index.Index(edges_idx_filename)
         self.node_id_counter = 0
         self.edge_id_counter = 0
         self.edge_id_to_nodes = {}  # Mapping from edge_id to (start_node, end_node)
         self.nodes_to_edge_id = {}  # Mapping from (start_node, end_node) to edge_id
 
-    def save_graph(self, filename: str):
-        """
-        Save the graph and its spatial indices to disk.
-        """
-        data_dir = 'data'
-        nodes_idx_filename = os.path.join(data_dir, f'{filename}_spatial_index_nodes')
-        edges_idx_filename = os.path.join(data_dir, f'{filename}_spatial_index_edges')
-        graph_filename = os.path.join(data_dir, f'{filename}.gpickle')
-
-        # Close the R-tree indices before saving
-        self.rtree_nodes_index.close()
-        self.rtree_edges_index.close()
-        
-        with open(graph_filename, 'wb') as f:
+    def save_graph(self):
+        # Save the graph and other data
+        with open(self.graph_filename, 'wb') as f:
             pickle.dump((self.G, self.node_id_counter, self.edge_id_counter, self.edge_id_to_nodes, self.nodes_to_edge_id), f)
 
-        # Re-load the R-tree index from disk
-        self.rtree_nodes_index = index.Index(nodes_idx_filename)
-        self.rtree_edges_index = index.Index(edges_idx_filename)
+        # The index files are automatically saved when closing
+        self.rtree_nodes_index.close()
+        self.rtree_edges_index.close()
+
+        print(f"Graph and indices saved to {self.graph_filename}")
 
     @classmethod
-    def load_graph(cls, filename: str):
-        data_dir = 'data'
-        nodes_idx_filename = os.path.join(data_dir, f'{filename}_spatial_index_nodes')
-        edges_idx_filename = os.path.join(data_dir, f'{filename}_spatial_index_edges')
+    def load_graph(cls, data_dir: str = 'data', filename: str = 'extended_network'):
+        nodes_idx_filename = os.path.join(data_dir, f'{filename}_nodes')
+        edges_idx_filename = os.path.join(data_dir, f'{filename}_edges')
         graph_filename = os.path.join(data_dir, f'{filename}.gpickle')
 
         if not os.path.exists(graph_filename):
+            print(f"Graph file {graph_filename} not found.")
             return None
 
         pedestrian_graph = cls()
         with open(graph_filename, 'rb') as f:
             pedestrian_graph.G, pedestrian_graph.node_id_counter, pedestrian_graph.edge_id_counter, pedestrian_graph.edge_id_to_nodes, pedestrian_graph.nodes_to_edge_id = pickle.load(f)
 
-        pedestrian_graph.rtree_nodes_index = index.Index(nodes_idx_filename)
-        pedestrian_graph.rtree_edges_index = index.Index(edges_idx_filename)
+        # Load R-tree indices or rebuild
+        if os.path.exists(f'{nodes_idx_filename}.idx') and os.path.exists(f'{edges_idx_filename}.idx'):
+            pedestrian_graph.rtree_nodes_index = index.Index(nodes_idx_filename)
+            pedestrian_graph.rtree_edges_index = index.Index(edges_idx_filename)
+            print(f"Graph and indices loaded from {dir}")
+        else:
+            print(f"R-tree index files not found. Rebuilding indices.")
+            pedestrian_graph.rebuild_rtree_indices()
 
         return pedestrian_graph
+
+    def rebuild_rtree_indices(self):
+        self.rtree_nodes_index = index.Index()
+        for node_id, node_data in self.G.nodes(data=True):
+            point = wkt.loads(node_data['wkt'])
+            self.rtree_nodes_index.insert(node_id, point.bounds)
+
+        self.rtree_edges_index = index.Index()
+        for edge_id, (start_node, end_node) in self.edge_id_to_nodes.items():
+            start_point = wkt.loads(self.G.nodes[start_node]['wkt'])
+            end_point = wkt.loads(self.G.nodes[end_node]['wkt'])
+            line = LineString([start_point, end_point])
+            self.rtree_edges_index.insert(edge_id, line.bounds)
+
+        print("R-tree indices rebuilt from graph data")
 
     def build_pedestrian_graph(self, load: bool=False, filename='pedestrian_graph'):
         if load:
@@ -290,6 +310,30 @@ class PedestrianGraph:
                 pbar.update(1)
         
         print(f"Graph extension completed. Processed {total_locations} locations.")
+
+    def get_closeby_amenities(self, source: Point, distance_type: str, distance_max_value: float) -> dict:
+        if distance_type not in ['length_m', 'minutes']:
+            raise ValueError("distance_type must be either 'length_m' or 'minutes'")
+
+        search_area = box(source.x - distance_max_value, source.y - distance_max_value,
+                        source.x + distance_max_value, source.y + distance_max_value)
+
+        potential_nodes = list(self.rtree_nodes_index.intersection(search_area.bounds))
+
+        source_node = self.find_nearest_node(source)
+
+        distances = nx.single_source_dijkstra_path_length(self.G.subgraph(potential_nodes), 
+                                                        source_node, 
+                                                        cutoff=distance_max_value, 
+                                                        weight=distance_type)
+        
+        amenities = defaultdict(list)
+        for node, distance in distances.items():
+            if 'amenity_types' in self.G.nodes[node]:
+                for amenity in self.G.nodes[node]['amenity_types']:
+                    amenities[amenity].append(distance)
+        
+        return dict(amenities)
 
     def graph_to_geojson(self) -> Dict:
         features = []

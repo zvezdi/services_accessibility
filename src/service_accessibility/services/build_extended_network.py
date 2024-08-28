@@ -4,7 +4,7 @@ from ..models.point_of_interest import CulturePOI, HealthPOI, KidsPOI, MobilityP
 from ..models.residential import Residential
 from sqlalchemy import func
 
-def build_and_save(filename: str):
+def build_and_save():
     pedestrian_graph = PedestrianGraph()
     pedestrian_graph.build_pedestrian_graph()
     
@@ -24,4 +24,4 @@ def build_and_save(filename: str):
 
     residential_buildings = session.query(Residential).all()
     pedestrian_graph.extend_graph_with(residential_buildings)
-    pedestrian_graph.save_graph(filename)
+    pedestrian_graph.save_graph()

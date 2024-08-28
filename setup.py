@@ -14,6 +14,7 @@ setup(
         "uvicorn",
         "python-dotenv",
         "tqdm",
-        "rtree"
+        "rtree",
+        "scipy"
     ],
 )
