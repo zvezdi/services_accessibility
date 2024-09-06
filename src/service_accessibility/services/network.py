@@ -1,4 +1,4 @@
-from typing import Dict, Any, Tuple
+from typing import Dict, Tuple
 import networkx as nx
 from rtree import index
 import pickle
@@ -11,9 +11,8 @@ from ..models.pedestrian_path import PedestrianPath
 from .crs_transform import get_transformer, crs_transform
 from tqdm import tqdm
 from collections import defaultdict
-from shapely.ops import unary_union
-from scipy.spatial import Delaunay
 import numpy as np
+import alphashape
 
 class PedestrianGraph:
     POINT_BUFFER = 1.0  # 1 meter buffer as rtree requires a rectangle to work with
@@ -315,14 +314,8 @@ class PedestrianGraph:
         if distance_type not in ['length_m', 'minutes']:
             raise ValueError("distance_type must be either 'length_m' or 'minutes'")
 
-        search_area = box(source.x - distance_max_value, source.y - distance_max_value,
-                        source.x + distance_max_value, source.y + distance_max_value)
-
-        potential_nodes = list(self.rtree_nodes_index.intersection(search_area.bounds))
-
         source_node = self.find_nearest_node(source)
-
-        distances = nx.single_source_dijkstra_path_length(self.G.subgraph(potential_nodes), 
+        distances = nx.single_source_dijkstra_path_length(self.G, 
                                                         source_node, 
                                                         cutoff=distance_max_value, 
                                                         weight=distance_type)
@@ -334,6 +327,57 @@ class PedestrianGraph:
                     amenities[amenity].append(distance)
         
         return dict(amenities)
+
+    # def compute_isochrone(self, source: Point, distance_type: str, distance_max_value: float) -> Polygon:
+    #     if distance_type not in ['length_m', 'minutes']:
+    #         raise ValueError("distance_type must be either 'length_m' or 'minutes'")
+        
+    #     # Create a bounding box for the search area
+    #     search_area = box(source.x - distance_max_value, source.y - distance_max_value,
+    #                     source.x + distance_max_value, source.y + distance_max_value)
+        
+    #     # Use R-tree to get potential nodes within the bounding box
+    #     potential_nodes = list(self.rtree_nodes_index.intersection(search_area.bounds))
+        
+    #     source_node = self.find_nearest_node(source)
+        
+    #     # Use NetworkX to compute distances, but only for the potential nodes
+    #     distances = nx.single_source_dijkstra_path_length(self.G.subgraph(potential_nodes), 
+    #                                                     source_node, 
+    #                                                     cutoff=distance_max_value, 
+    #                                                     weight=distance_type)
+        
+    #     isochrone_points = [self.node_to_point(node) for node in distances.keys()]
+        
+    #     if len(isochrone_points) < 3:
+    #         return None  # Not enough points to form a polygon
+        
+    #     # Create a concave hull (alpha shape) from the points
+    #     points = np.array([(p.x, p.y) for p in isochrone_points])
+    #     alpha_shape = alphashape.alphashape(points, alpha=0.5)
+        
+    #     if isinstance(alpha_shape, Polygon):
+    #         return alpha_shape
+    #     elif isinstance(alpha_shape, MultiPoint):
+    #         return alpha_shape.convex_hull  # Fallback if alphashape fails to create a Polygon
+    #     elif isinstance(alpha_shape, MultiPolygon):
+    #         # TODO: What should happen if the shape is MultiPolygon? For now simplify to the largest shape
+    #         largest_polygon = max(alpha_shape.geoms, key=lambda p: p.area)
+    #         print(largest_polygon)
+    #         return largest_polygon
+    #     else:
+    #         print(alpha_shape)
+    #         return None  # Handle unexpected results
+
+    # def compute_isochrones(self, source: Point, distance_type: str, distance_max_value: int, step: int) -> dict:
+    #     # TODO: If this is going to be used for more than a single point at a time
+    #     # it should be rewriten not to reuse the results from one dijkstra traversal
+    #     isochrones = {}
+    #     for distance in range(step, distance_max_value + step, step):
+    #         isochrone = self.compute_isochrone(source, distance_type, distance)
+    #         if isochrone:
+    #             isochrones[distance] = isochrone
+    #     return isochrones
 
     def graph_to_geojson(self) -> Dict:
         features = []

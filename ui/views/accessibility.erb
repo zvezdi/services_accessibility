@@ -14,21 +14,6 @@
 <script>
   var layersData = [
     {
-      name: 'Pedestrian Network',
-      data: <%= @pedestrian_network.to_json %>,
-      color: '#9da5a8',
-      type: 'line',
-      visible: false
-    },
-    {
-      name: 'Schools',
-      data: <%= @schools.to_json %>,
-      color: '#FF0000',
-      type: 'point',
-      pointSize: 8,
-      visible: true
-    },
-    {
       name: 'Urban planning units',
       data: <%= @urban_planning_units.to_json %>,
       color: '#87CEEB',
@@ -36,6 +21,14 @@
       fillOpacity: 0.3,
       type: 'polygon',
       visible: false
+    },
+    {
+      name: 'Buildings in urban planning unit',
+      data: <%= @buildings_in_upu.to_json %>,
+      color: '#FF0000',
+      type: 'point',
+      pointSize: 4,
+      visible: true
     },
   ];
 </script>
