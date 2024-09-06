@@ -1,0 +1,41 @@
+<form action="/building_accessibility" method="get" class="p-4 space-y-4 bg-gray-100 rounded-md shadow-md">
+  <div class="flex flex-col mb-2">
+    <label for="urban_planning_unit_id" class="text-lg font-medium text-gray-700">Urban Planning Unit UID:</label>
+    <input type="text" id="urban_planning_unit_id" name="urban_planning_unit_id" value="<%= params['urban_planning_unit_id'] %>" class="p-2 mt-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
+  </div>
+  <div class="flex flex-col mb-2">
+    <label for="length_type" class="text-lg font-medium text-gray-700">Length Type:</label>
+    <select id="length_type" name="length_type" class="p-2 mt-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500">
+      <option value="length_m" <%= 'selected' if params['length_type'] == 'length_m' %>>Length (m)</option>
+      <option value="minutes" <%= 'selected' if params['length_type'] == 'minutes' %>>Minutes</option>
+      <!-- Add more options as needed -->
+    </select>
+  </div>
+  <div class="flex flex-col mb-2">
+    <label for="max_distance" class="text-lg font-medium text-gray-700">Max Distance: (in the Length type unit)</label>
+    <input type="number" id="max_distance" name="max_distance" value="<%= params['max_distance'] %>" class="p-2 mt-1 border border-gray-300 rounded-md focus:ring-blue-500 focus:border-blue-500" />
+  </div>
+  <div class="flex flex-col mb-4">
+    <label for="k" class="text-lg font-medium text-gray-700">K:</label>
+    <input type="range" id="k" name="k" min="50" max="500" step="1" value="<%= params['k'] %>" class="w-full h-2 mt-1 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:ring-blue-500" oninput="updateKValue(this.value)" />
+    <output id="kValue" class="mt-2 text-sm text-gray-700"><%= params['k'] %></output>
+  </div>
+  <div class="flex flex-col mb-4">
+    <label for="f" class="text-lg font-medium text-gray-700">F:</label>
+    <input type="range" id="f" name="f" min="0" max="1" step="0.01" value="<%= params['f'] %>" class="w-full h-2 mt-1 bg-gray-200 rounded-lg appearance-none cursor-pointer focus:ring-blue-500" oninput="updateFValue(this.value)" />
+    <output id="fValue" class="mt-2 text-sm text-gray-700"><%= params['f'] %></output>
+  </div>
+  <div>
+    <button type="submit" class="w-full px-4 py-2 font-semibold text-white bg-blue-500 rounded-md shadow-sm hover:bg-blue-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2">Update Parameters</button>
+  </div>
+</form>
+
+<script>
+  function updateKValue(value) {
+    document.getElementById('kValue').textContent = value;
+  }
+
+  function updateFValue(value) {
+    document.getElementById('fValue').textContent = value;
+  }
+</script>

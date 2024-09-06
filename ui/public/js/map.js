@@ -1,7 +1,7 @@
 document.addEventListener("DOMContentLoaded", () => {
   const map = L.map("map", {
     zoomControl: false,
-  }).setView([42.6977, 23.3219], 13);
+  }).setView([42.6977, 23.3219], 15);
 
   L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
     attribution:
@@ -15,6 +15,21 @@ document.addEventListener("DOMContentLoaded", () => {
     .addTo(map);
 
   const layers = {};
+
+  function getColor(layerInfo, feature) {
+    if (
+      layerInfo.getColorForFeature &&
+      typeof layerInfo.getColorForFeature === "function"
+    ) {
+      return layerInfo.getColorForFeature(feature);
+    }
+
+    if (layerInfo.color) {
+      return layerInfo.color;
+    }
+
+    return "black";
+  }
 
   function createLayer(layerInfo) {
     let layer;
@@ -33,10 +48,11 @@ document.addEventListener("DOMContentLoaded", () => {
     } else if (layerInfo.type === "point") {
       layer = L.geoJSON(layerInfo.data, {
         pointToLayer: (feature, latlng) => {
+          const computed_color = getColor(layerInfo, feature);
           return L.circleMarker(latlng, {
             radius: layerInfo.pointSize || 6,
-            fillColor: layerInfo.color,
-            color: layerInfo.color,
+            fillColor: computed_color,
+            color: computed_color,
             weight: 1,
             opacity: 1,
             fillOpacity: 0.8,
@@ -50,12 +66,12 @@ document.addEventListener("DOMContentLoaded", () => {
       });
     } else if (layerInfo.type === "polygon") {
       layer = L.geoJSON(layerInfo.data, {
-        style: {
-          color: layerInfo.color,
-          fillColor: layerInfo.fillColor || layerInfo.color,
+        style: (feature) => ({
+          color: getColor(layerInfo, feature),
+          fillColor: getColor(layerInfo, feature),
           fillOpacity: layerInfo.fillOpacity || 0.4,
           weight: 2,
-        },
+        }),
         onEachFeature: (feature, featureLayer) => {
           if (feature.properties) {
             featureLayer.bindPopup(createPopupContent(feature.properties));
@@ -79,20 +95,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
   function createToggle(layerName, layerColor) {
     const toggleDiv = document.createElement("div");
-    toggleDiv.className = "mb-2 flex items-center";
+    toggleDiv.className = "flex items-center mb-2";
     toggleDiv.innerHTML = `
-      <div class="w-4 h-4 mr-2" style="background-color: ${layerColor};"></div>
-      <label class="inline-flex items-center">
-        <input type="checkbox" id="toggle${layerName.replace(/\s+/g, "")}" class="form-checkbox" ${layersData.find((l) => l.name === layerName).visible !== false ? "checked" : ""}>
-        <span class="ml-2">${layerName}</span>
-      </label>
+    <label class="inline-flex items-center">
+      <input type="checkbox" id="toggle${layerName.replace(/\s+/g, "")}" class="form-checkbox" ${layersData.find((l) => l.name === layerName).visible !== false ? "checked" : ""}>
+      <span class="ml-2">${layerName}</span>
+    </label>
+    <div class="w-4 h-4 ml-2" style="background-color: ${layerColor};"></div>
     `;
     return toggleDiv;
   }
 
+  function fitToVisibleLayers(map, layers) {
+    const visibleLayers = [];
+
+    for (const layerName of Object.keys(layers)) {
+      const layer = layers[layerName];
+
+      if (map.hasLayer(layer)) {
+        visibleLayers.push(layer);
+      }
+    }
+
+    if (visibleLayers.length > 0) {
+      const visibleGroup = L.featureGroup(visibleLayers);
+      map.fitBounds(visibleGroup.getBounds());
+    }
+  }
+
   const layerTogglesContainer = document.getElementById("layer-toggles");
 
-  layersData.forEach((layerInfo) => {
+  for (const layerInfo of layersData) {
     const layer = createLayer(layerInfo);
     layers[layerInfo.name] = layer;
 
@@ -106,8 +139,10 @@ document.addEventListener("DOMContentLoaded", () => {
       } else {
         map.removeLayer(layer);
       }
+
+      fitToVisibleLayers(map, layers);
     });
-  });
+  }
 
   const allLayers = L.featureGroup(Object.values(layers));
   map.fitBounds(allLayers.getBounds());
@@ -119,4 +154,11 @@ document.addEventListener("DOMContentLoaded", () => {
   setTimeout(() => {
     map.invalidateSize();
   }, 100);
+
+  // Legend logic
+  if (typeof showLegend !== "undefined" && showLegend) {
+    const legendHtml = document.createElement("div");
+    legendHtml.innerHTML = legendHtmlContent; // Legend HTML comes from erb config
+    document.body.appendChild(legendHtml);
+  }
 });

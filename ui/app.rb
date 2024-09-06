@@ -20,7 +20,27 @@ end
 
 get '/building_accessibility' do
   # http://localhost:4567/building_accessibility?urban_planning_unit_id=21&length_type=length_m&max_distance=1000&k=100&max_amenities=3&f=0.2
+  default_params = {
+    'urban_planning_unit_id' => '273',
+    'length_type' => 'length_m',
+    'max_distance' => '1000',
+    'k' => '200',
+    'max_amenities' => '3',
+    'f' => '0.5'
+  }
+
+  if params.empty?
+    redirect to("/building_accessibility?#{URI.encode_www_form(default_params)}")
+  end
+
+  # Override default values with parameters from the request if present
+  merged_params = default_params.merge(params)
+
+  @colors = ['maroon', 'chocolate', 'orange', 'gold', 'yellowgreen', 'forestgreen', 'darkgreen']
+  @show_legend = true
+
   @urban_planning_units = fetch_data('/urban_planning_units')
-  @buildings_in_upu = fetch_data('/residential_buildings_with_accessibility_index', params)
+  @buildings_in_upu = fetch_data('/residential_buildings_with_accessibility_index', merged_params)
+
   erb :accessibility
 end

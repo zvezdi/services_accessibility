@@ -1,0 +1,32 @@
+<div style="position: fixed; 
+            bottom: 50px; left: 50px; width: 200px; height: 20px; 
+            background: linear-gradient(to right, <%= @colors.join(', ') %>);
+            z-index: 9999; font-size: 14px;"
+      onmousemove="showValue(event)" onmouseout="hideValue()">
+</div>
+<div style="position: fixed; 
+            bottom: 30px; left: 50px; width: 200px; height: 20px; 
+            background: white; color: black; text-align: center; z-index: 9999; font-size: 14px;">
+            Walkability index
+</div>
+<div id="hoverValue"
+     style="position: fixed;
+            bottom: 70px; left: 50px; width: 50px; height: 20px;
+            background: rgba(255, 255, 255, 0.8); color: black; text-align: center; z-index: 9999; font-size: 14px; display: none;">
+</div>
+<script>
+  function showValue(event) {
+    var element = document.querySelector('[onmousemove]');
+    var rect = element.getBoundingClientRect();
+    var offsetX = event.clientX - rect.left;
+    var value = Math.round((offsetX / rect.width) * 100);
+    var hoverValue = document.getElementById('hoverValue');
+    hoverValue.style.left = (event.clientX + 10) + 'px';
+    hoverValue.style.display = 'block';
+    hoverValue.innerHTML = value;
+  }
+  function hideValue() {
+    var hoverValue = document.getElementById('hoverValue');
+    hoverValue.style.display = 'none';
+  }
+</script>
