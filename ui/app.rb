@@ -44,3 +44,30 @@ get '/building_accessibility' do
 
   erb :accessibility
 end
+
+get '/precomputed_building_accessibility' do
+  # http://localhost:4567/precomputed_building_accessibility?length_type=length_m&max_distance=1000&k=300&max_amenities=3&f=0.5
+  default_params = {
+    'length_type' => 'length_m',
+    'max_distance' => '1000',
+    'k' => '300',
+    'max_amenities' => '3',
+    'f' => '0.5'
+  }
+
+  if params.empty?
+    redirect to("/precomputed_building_accessibility?#{URI.encode_www_form(default_params)}")
+  end
+
+  # Override default values with parameters from the request if present
+  merged_params = default_params.merge(params)
+
+  @colors = ['maroon', 'chocolate', 'orange', 'gold', 'yellowgreen', 'forestgreen', 'darkgreen']
+  @show_legend = true
+
+  @urban_planning_units = fetch_data('/urban_planning_units')
+  @buildings = fetch_data('/precomputed_residential_accessibility_index', merged_params)
+
+  erb :precomputed_accessibility
+end
+

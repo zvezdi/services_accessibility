@@ -1,0 +1,55 @@
+<div class="flex flex-row">
+  <div class="basis-2/3">
+    <div id="map" class="h-svh">
+      <% if @show_legend %>
+        <%= erb :_legend, colors: @colors %>
+      <% end %>
+    </div>
+  </div>
+
+  <div class="flex flex-col basis-1/3">
+    <div class="flex flex-col items-center">
+      <h1 class="mb-4 text-2xl font-bold text-center">Map Layers</h1>
+      <div id="layer-toggles" class="w-full px-4 mb-4">
+        <!-- Layer toggles will be dynamically added here -->
+      </div>
+    </div>
+    <div>
+        <%= erb :_precomputed_building_accessibility_form%>
+    </div>
+  </div>
+
+</div>
+
+<script src="js/colorUtils.js" ></script>
+<script>
+  const COLORS = <%= @colors%>;
+
+  function getColorForFeature(feature, defaultColor) {
+    if (feature.properties && feature.properties.accessibility !== undefined) {
+      const accessibility = feature.properties.accessibility;
+      return colorFor(accessibility, COLORS);
+    } else {
+      return defaultColor;
+    }
+  }
+
+  var layersData = [
+    {
+      name: 'Urban planning units',
+      data: <%= @urban_planning_units.to_json %>,
+      color: '#87CEEB',
+      fillOpacity: 0.2,
+      type: 'polygon',
+      visible: true
+    },
+    {
+      name: 'Buildings in urban planning unit',
+      data: <%= @buildings.to_json %>,
+      getColorForFeature: getColorForFeature,
+      type: 'point',
+      pointSize: 4,
+      visible: true,
+    },
+  ];
+</script>

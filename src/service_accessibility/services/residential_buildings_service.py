@@ -2,6 +2,7 @@ from ..database.connection import get_db_session
 from ..models.residential import Residential
 from ..models.urban_planning_unit import UrbanPlanningUnit
 from geoalchemy2.shape import to_shape
+from shapely import wkt
 from shapely.geometry import mapping
 from .crs_transform import get_transformer, crs_transform
 from .walkability_service import compute_accessibility_index
@@ -75,3 +76,20 @@ def get_with_accessibility(G, length_type, max_distance, k, max_amenities, f, ur
         return result
     finally:
         session.close()
+
+def buildings_to_geojson(buildings):
+    transformer = get_transformer()
+
+    return(
+        {
+            "type": "Feature",
+            "geometry": mapping(crs_transform(transformer, wkt.loads(building.geom).centroid, swap_coords=False)),
+            "properties": {
+                "gid": building.gid,
+                "floorcount": building.floorcount,
+                "appcount": building.appcount,
+                "accessibility": building.accessibility_index,
+            }
+        }
+        for building in buildings
+    )
