@@ -6,7 +6,7 @@ from ..services import residential_buildings_service
 from ..services import urban_planning_unit_service
 from ..services.network import PedestrianGraph
 from ..services.walkability_service import compute_accessibility_index
-from ..services.precompute_accessibility import get_buildings_with_precomputed_accessibility
+from ..services.precompute_accessibility import get_buildings_with_precomputed_accessibility, get_upu_with_precomputed_accessibility
 
 router = APIRouter()
 
@@ -102,6 +102,23 @@ async def precomputed_residential_accessibility_index(
     return {
         "type": "FeatureCollection",
         "features": buildings_geojsons
+    }
+
+@router.get("/precomputed_upu_accessibility_index")
+# http://localhost:8000/precomputed_upu_accessibility_index?length_type=length_m&max_distance=1000&k=300&max_amenities=3&f=0.5
+async def precomputed_upu_accessibility_index(
+    length_type: str = Query(..., description="Type of distance metric"),
+    max_distance: int = Query(..., description="Maximum distance for isochrones"),
+    k: int = Query(..., description="A parameter controlling the rate of decrease in accessibility beyond half of the maximum distance"), 
+    max_amenities: int = Query(..., description="Sets the point of saturation. Only this amount of amenities will contribute to the index."),
+    f: float = Query(..., description="A parameter controlling the rate at which the value of having additional amenities diminishes"),
+):
+    upus = get_upu_with_precomputed_accessibility(length_type, max_distance, k, max_amenities, f)
+    upus_geojsons = urban_planning_unit_service.upus_to_geojson(upus)
+
+    return {
+        "type": "FeatureCollection",
+        "features": upus_geojsons
     }
 
 # @router.get("/get_isochrone")

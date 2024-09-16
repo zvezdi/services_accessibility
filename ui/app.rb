@@ -65,7 +65,7 @@ get '/precomputed_building_accessibility' do
   @colors = ['maroon', 'chocolate', 'orange', 'gold', 'yellowgreen', 'forestgreen', 'darkgreen']
   @show_legend = true
 
-  @urban_planning_units = fetch_data('/urban_planning_units')
+  @urban_planning_units = fetch_data('/precomputed_upu_accessibility_index', merged_params)
   @buildings = fetch_data('/precomputed_residential_accessibility_index', merged_params)
 
   erb :precomputed_accessibility

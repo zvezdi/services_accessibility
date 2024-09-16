@@ -130,12 +130,12 @@ def get_buildings_with_precomputed_accessibility(length_type, max_distance, k, m
 
     sql = f'''
       WITH accessibility_subquery AS (
-      SELECT
+        SELECT
           building_accessibility.building_gid,
           building_accessibility.{column_name} AS accessibility_index
-      FROM
+        FROM
           results.building_accessibility
-      )
+        )
       SELECT
           r.gid,
           ST_AsText(r.geom) as geom,
@@ -149,6 +149,50 @@ def get_buildings_with_precomputed_accessibility(length_type, max_distance, k, m
       ON
           r.gid = accessibility_subquery.building_gid;
     ''' 
+
+    result = session.execute(sa.text(sql))
+
+    return result.fetchall()
+
+def get_upu_with_precomputed_accessibility(length_type, max_distance, k, max_amenities, f):
+    column_name = sanitize_column_name(length_type, max_distance, k, max_amenities, f)
+
+    session = get_db_session()
+
+    sql = f'''
+      WITH building_accessibility_data AS (
+        SELECT
+            r.gid AS building_gid,
+            r.geom AS building_geom,
+            r.appcount AS building_appcount,
+            r.floorcount AS building_floorcount,
+            ba.{column_name} AS accessibility_index
+        FROM
+            raw.buildings_all_residential_2024 AS r
+        JOIN
+            results.building_accessibility AS ba
+        ON
+            r.gid = ba.building_gid
+        )
+
+      SELECT
+          upu.gid AS gid,
+          upu.regname,
+          upu.rajon,
+          ST_AsText(upu.geom) AS geom,
+          SUM(bad.building_appcount) AS app_count,
+          SUM(bad.building_floorcount) AS floor_count,
+          COUNT(bad.building_gid) AS building_count,
+          SUM(bad.accessibility_index * bad.building_appcount) / NULLIF(SUM(bad.building_appcount), 0) AS accessibility_index
+      FROM
+          raw.urban_planning_units AS upu
+      JOIN
+          building_accessibility_data AS bad
+      ON
+          ST_Within(bad.building_geom, upu.geom)
+      GROUP BY
+          upu.gid, upu.regname, upu.rajon, upu.geom;
+    '''
 
     result = session.execute(sa.text(sql))
 
