@@ -16,3 +16,13 @@
 
 The building of the graph is too slow to live in the request lifecycle. This task can be run to rebuild the graph from the database.
 `python scripts/prebuild_network.py`
+
+2. Precompute results with specified parameteters city wide.
+
+Computing a score for all the buildings in the city is too slow to live in the request lifecycle. This task can be run to precompute and store the results in the database. Make sure to adjust the parameters inside the file before running it.
+`python scripts/precompute_accessibility.py`
+
+## UI
+
+The UI is a simple sinatra server you can find in the `ui` directory.`ui/app.rb` is the server entrypoint. You can start the server by navigating to the ui directory and running the `run.sh` script
+

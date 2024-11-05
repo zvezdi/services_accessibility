@@ -9,7 +9,7 @@ if __name__ == "__main__":
     length_type = 'length_m'
     max_distance = 1000
     k = 300
-    max_amenities = 1
+    max_amenities = 3
     f = 0.5
 
     compute_and_store_accessibility(length_type, max_distance, k, max_amenities, f, recompute=True)
